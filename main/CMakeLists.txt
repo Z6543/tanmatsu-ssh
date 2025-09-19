@@ -39,6 +39,10 @@ idf_component_register(
 		"menu/menu_wifi_info.c"
 		"menu/menu_power_information.c"
 		"menu/menu_filebrowser.c"
+		"menu/menu_ssh.c"
+		"menu/menu_ssh_edit.c"
+		"menu/util_ssh.c"
+		"menu/settings_ssh.c"
 
 		# Fonts
 		"chakrapetchmedium.c"

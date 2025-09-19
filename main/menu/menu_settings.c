@@ -19,6 +19,8 @@
 #include "pax_types.h"
 #include "radio_update.h"
 #include "settings_clock.h"
+#include "menu_ssh.h"
+#include "esp_log.h"
 
 typedef enum {
     ACTION_NONE,
@@ -30,6 +32,7 @@ typedef enum {
     ACTION_LAST,
     ACTION_RADIO_UPDATE,
     ACTION_POWER_INFORMATION,
+    ACTION_SSH,
 } menu_home_action_t;
 
 static void radio_update_v2(void) {
@@ -64,6 +67,9 @@ static void execute_action(pax_buf_t* fb, menu_home_action_t action, gui_theme_t
             break;
         case ACTION_POWER_INFORMATION:
             menu_power_information();
+            break;
+        case ACTION_SSH:
+            menu_ssh(fb, theme);
             break;
         default:
             break;
@@ -103,6 +109,8 @@ void menu_settings(void) {
     defined(CONFIG_BSP_TARGET_HACKERHOTEL_2026)
     menu_insert_item_icon(&menu, "Install radio firmware from SD card", NULL, (void*)ACTION_RADIO_UPDATE, -1,
                           get_icon(ICON_RELEASE_ALERT));
+    menu_insert_item_icon(&menu, "SSH settings", NULL, (void*)ACTION_SSH, -1,
+                          get_icon(ICON_TERMINAL));
 #endif
 
     pax_buf_t*   buffer = display_get_buffer();

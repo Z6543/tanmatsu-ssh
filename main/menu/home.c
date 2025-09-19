@@ -25,6 +25,7 @@
 #include "pax_matrix.h"
 #include "pax_types.h"
 #include "usb_device.h"
+#include "menu_ssh.h"
 
 typedef enum {
     ACTION_NONE,
@@ -32,6 +33,7 @@ typedef enum {
     ACTION_NAMETAG,
     ACTION_REPOSITORY,
     ACTION_SETTINGS,
+    ACTION_SSH,
     ACTION_RFTEST,
     ACTION_LAST,
 } menu_home_action_t;
@@ -52,6 +54,9 @@ static void execute_action(pax_buf_t* fb, menu_home_action_t action, gui_theme_t
             break;
         case ACTION_REPOSITORY:
             menu_repository_client(fb, theme);
+            break;
+        case ACTION_SSH:
+            menu_ssh(fb, theme);
             break;
         default:
             break;
@@ -129,6 +134,7 @@ void menu_home(void) {
     if (access("/int/rftest_local.bin", F_OK) == 0) {
         menu_insert_item_icon(&menu, "RF test", NULL, (void*)ACTION_RFTEST, -1, get_icon(ICON_DEV));
     }
+    menu_insert_item_icon(&menu, "SSH", NULL, (void*)ACTION_SSH, -1, get_icon(ICON_TERMINAL));
 
     int header_height = theme->header.height + (theme->header.vertical_margin * 2);
     int footer_height = theme->footer.height + (theme->footer.vertical_margin * 2);
