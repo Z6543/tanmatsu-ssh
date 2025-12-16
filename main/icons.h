@@ -64,6 +64,7 @@ typedef enum {
     ICON_APP,
     ICON_ERROR,
     ICON_TERMINAL,
+    ICON_BRIGHTNESS,
     ICON_LAST
 } icon_t;
 

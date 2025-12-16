@@ -33,7 +33,7 @@ idf_component_register(
 		"menu/textedit.c"
 		"menu/radio_update.c"
 		"menu/nametag.c"
-		"menu/rftest.c"
+		"menu/menu_rftest.c"
 		"menu/menu_repository_client.c"
 		"menu/menu_repository_client_project.c"
 		"menu/menu_wifi_info.c"
@@ -43,6 +43,13 @@ idf_component_register(
 		"menu/menu_ssh_edit.c"
 		"menu/util_ssh.c"
 		"menu/settings_ssh.c"
+		"menu/menu_hardware_test.c"
+		"menu/menu_brightness.c"
+		"menu/settings_repository.c"
+
+		# Tests
+		"hardware_test/test_keyboard_stuck_keys.c"
+		"hardware_test/test_keyboard.c"
 
 		# Fonts
 		"chakrapetchmedium.c"
@@ -62,6 +69,8 @@ idf_component_register(
 		"filesystem_utils.c"
 		"app_management.c"
 		"ntp.c"
+		"device_settings.c"
+
 	PRIV_REQUIRES
 		esp_lcd
 		fatfs
@@ -88,6 +97,7 @@ idf_component_register(
 	INCLUDE_DIRS
 		"."
 		"include"
+		"hardware_test"
 	EMBED_FILES
 		${files}
 )
