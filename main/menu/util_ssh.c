@@ -42,7 +42,7 @@ static char const CSI_RIGHT[] = "\e[C";
 static char const CSI_UP[] = "\e[A";
 static char const CSI_DOWN[] = "\e[B";
 static char const CHR_TAB[] = "\t";
-static char const CHR_BS[] = "\b";
+static char const CHR_BS[] = "\x7f";  // DEL character for SSH
 static char const CHR_NL[] = "\n";
 
 #if defined(CONFIG_BSP_TARGET_TANMATSU) || defined(CONFIG_BSP_TARGET_KONSOOL) || \
@@ -355,19 +355,19 @@ void util_ssh(pax_buf_t* buffer, gui_theme_t* theme, ssh_settings_t* settings) {
 		break;
             case LIBSSH2_KNOWNHOST_CHECK_FAILURE: // something prevented the check being made
 	        ESP_LOGI(TAG, "host check failed - something prevented the check being made");
-		sprintf(dialog_buffer, "Host check failed\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
+		// sprintf(dialog_buffer, "Host check failed\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
 		break;
 	    case LIBSSH2_KNOWNHOST_CHECK_NOTFOUND: // no host match was found
 	        ESP_LOGI(TAG, "host check failed - host key not found - but that's OK");
-		sprintf(dialog_buffer, "Couldn't find saved host key, looks like this is a new connection.\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
+		// sprintf(dialog_buffer, "Couldn't find saved host key, looks like this is a new connection.\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
 		break;
 	    case LIBSSH2_KNOWNHOST_CHECK_MISMATCH: // host was found, but the keys did not match
 	        ESP_LOGI(TAG, "host check failed - keys did not match");
-		sprintf(dialog_buffer, "Host check failed - keys did not match.\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
+		// sprintf(dialog_buffer, "Host check failed - keys did not match.\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
 		break;
             default:
 	        ESP_LOGI(TAG, "host check failed - unexpected return value %d", check);
-		sprintf(dialog_buffer, "Host check failed - unexpected return value %d.\n\nWould you like to continue?", check);
+		// sprintf(dialog_buffer, "Host check failed - unexpected return value %d.\n\nWould you like to continue?", check);
 		break;
 	}
 
@@ -680,38 +680,76 @@ void util_ssh(pax_buf_t* buffer, gui_theme_t* theme, ssh_settings_t* settings) {
 
 	//ESP_LOGI(TAG, "display data sent by server");
 	if (nbytes > 0) {
-	    //pax_draw_rect(buffer, 0xff000000, 0, 0, buffer->width, buffer->height);
-            //display_blit_buffer(buffer);
-	    console_puts(&console_instance, ssh_buffer);
-	    // Draw the cursor as a thin vertical line
-	    // TODO: Other cursor styles e.g. block, blinking block, blinking line
-	    // TODO: Abstract the logic for figuring out the x, y pixel coordinates of the cursor
+	    // Parse ANSI escape sequences
+	    char* p = ssh_buffer;
+	    while (p < ssh_buffer + nbytes) {
+	        if (*p == '\x1b' && p + 1 < ssh_buffer + nbytes && *(p+1) == '[') {
+	            // CSI sequence: ESC[
+	            p += 2;
+	            char seq[32] = {0};
+	            int i = 0;
+	            // Parse parameters
+	            while (p < ssh_buffer + nbytes && i < 31) {
+	                if ((*p >= '0' && *p <= '9') || *p == ';' || *p == '?') {
+	                    seq[i++] = *p++;
+	                } else {
+	                    break;
+	                }
+	            }
+	            if (p < ssh_buffer + nbytes) {
+	                char cmd = *p++;
+	                if (cmd == 'J' && strcmp(seq, "2") == 0) {
+	                    // Clear screen
+	                    console_clear(&console_instance);
+	                    pax_draw_rect(buffer, 0xff000000, 0, 0, 800, 480);
+	                    if (ssh_bg_pax_buf.width > 0) {
+	                        pax_draw_image(buffer, &ssh_bg_pax_buf, 0, 0);
+	                    }
+	                    console_set_cursor(&console_instance, 0, 0);
+	                    cx = cy = ocx = ocy = 0;
+	                } else if (cmd == 'H' || cmd == 'f') {
+	                    // Cursor position
+	                    int row = 1, col = 1;
+	                    if (seq[0]) sscanf(seq, "%d;%d", &row, &col);
+	                    console_set_cursor(&console_instance, col - 1, row - 1);
+	                } else {
+	                    // Pass through other sequences
+	                    char esc_seq[64];
+	                    snprintf(esc_seq, sizeof(esc_seq), "\x1b[%s%c", seq, cmd);
+	                    console_puts(&console_instance, esc_seq);
+	                }
+	            }
+	        } else if (*p == 0x08) {
+	            // Backspace: check for erase pattern (BS SP BS)
+	            if (p + 2 < ssh_buffer + nbytes && *(p+1) == 0x20 && *(p+2) == 0x08) {
+	                // Destructive backspace
+	                if (console_instance.cursor_x > 0) {
+	                    console_instance.cursor_x--;
+	                    int erase_x = console_instance.char_width * console_instance.cursor_x;
+	                    int erase_y = console_instance.char_height * console_instance.cursor_y;
+	                    pax_draw_rect(buffer, console_instance.bg,
+	                                 erase_x, erase_y,
+	                                 console_instance.char_width, console_instance.char_height);
+	                }
+	                p += 3;
+	            } else {
+	                console_put(&console_instance, *p++);
+	            }
+	        } else {
+	            console_put(&console_instance, *p++);
+	        }
+	    }
+	    
+	    // Draw cursor
 	    cx = console_instance.char_width * console_instance.cursor_x;
 	    cy = console_instance.char_height * console_instance.cursor_y;
-	    printf("cursor position... %d, %d\n", console_instance.cursor_x, console_instance.cursor_y);
-	    if (ocx != 0 && ocy != 0) {
-		// clear old cursor by writing a new line in black
-		// TODO: Change cursor clear vertical line draw to use background colour
-	        printf("clearing cursor visual at old cursor position... %d, %d\n", ocx, ocy);
-  	        pax_draw_line(buffer, 0xff000000, ocx, ocy, ocx, ocy + (console_instance.char_height - 1));
+	    if (ocx != 0 || ocy != 0) {
+	        pax_draw_line(buffer, 0xff000000, ocx, ocy, ocx, ocy + (console_instance.char_height - 1));
 	    }
-	    // save the current cursor position as ocx, ocy so we can refer to it later
 	    ocx = cx;
 	    ocy = cy;
-	    // draw cursor as a light grey vertical line
-	    // TODO: Change cursor vertical line draw to use foreground/text colour
-	    printf("drawing cursor visual at cursor position %d, %d\n", cx, cy);
-  	    pax_draw_line(buffer, 0xefefefef, cx, cy, cx, cy + (console_instance.char_height - 1));
-	    console_instance.fg = 0xff00ff00;
-	    console_instance.bg = 0x00000000;
-	    // dump the contents of the ssh_buffer so we can see what escape codes etc are being sent
-            for (int pos = 0; pos < nbytes; pos++) {
-	        printf("%0x ", ssh_buffer[pos]);
-            //    //putc(ssh_buffer[pos], stdout);
-            //    console_put(&console_instance, ssh_buffer[pos]);
-            //    // TODO: error check for console_put?
-            }
-            // TODO: error check for display_blit_buffer?
+	    pax_draw_line(buffer, 0xffefefef, cx, cy, cx, cy + (console_instance.char_height - 1));
+	    
             display_blit_buffer(buffer);
 	}
     }
