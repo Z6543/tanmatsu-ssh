@@ -160,7 +160,7 @@ void util_ssh(pax_buf_t* buffer, gui_theme_t* theme, ssh_settings_t* settings) {
     int known_hosts = 0;
     struct sockaddr_in ssh_addr;
     char ssh_buffer[1024];
-    char dialog_buffer[128];
+    char dialog_buffer[256];  // Increased from 128 to 256
     char ssh_comment[128];
     char ssh_password[128];
     LIBSSH2_SESSION *ssh_session;
@@ -355,19 +355,19 @@ void util_ssh(pax_buf_t* buffer, gui_theme_t* theme, ssh_settings_t* settings) {
 		break;
             case LIBSSH2_KNOWNHOST_CHECK_FAILURE: // something prevented the check being made
 	        ESP_LOGI(TAG, "host check failed - something prevented the check being made");
-		// sprintf(dialog_buffer, "Host check failed\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
+		sprintf(dialog_buffer, "Host check failed\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
 		break;
 	    case LIBSSH2_KNOWNHOST_CHECK_NOTFOUND: // no host match was found
 	        ESP_LOGI(TAG, "host check failed - host key not found - but that's OK");
-		// sprintf(dialog_buffer, "Couldn't find saved host key, looks like this is a new connection.\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
+		sprintf(dialog_buffer, "Couldn't find saved host key, looks like this is a new connection.\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
 		break;
 	    case LIBSSH2_KNOWNHOST_CHECK_MISMATCH: // host was found, but the keys did not match
 	        ESP_LOGI(TAG, "host check failed - keys did not match");
-		// sprintf(dialog_buffer, "Host check failed - keys did not match.\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
+		sprintf(dialog_buffer, "Host check failed - keys did not match.\n\nThe host key fingerprint is: %s\n\nWould you like to continue?", ssh_printable_fingerprint);
 		break;
             default:
 	        ESP_LOGI(TAG, "host check failed - unexpected return value %d", check);
-		// sprintf(dialog_buffer, "Host check failed - unexpected return value %d.\n\nWould you like to continue?", check);
+		sprintf(dialog_buffer, "Host check failed - unexpected return value %d.\n\nWould you like to continue?", check);
 		break;
 	}
 
