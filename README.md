@@ -98,7 +98,7 @@ You should be able to build it in the same way as the regular launcher, and it s
 
 ## Code contributions
 
-If you make any fixes or improvements, please do raise a PR. Let's make this a really great app togher!
+If you make any fixes or improvements, please do raise a PR. Let's make this a really great app together!
 
 Also the vibe is very much "good vibes" more than vibe coding, so don't be too despondent if your epic 10,000 line LLM generated patch gets rejected ;-)
 
