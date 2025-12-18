@@ -81,7 +81,7 @@ static bool load_ssh_bg(void) {
     char bgfilename[PATH_MAX];
     
     //ESP_LOGI(TAG, "trying to opendir(/sd/bg)`");
-    d = opendir("/sd/bgX");
+    d = opendir("/sd/bg");
     if (!d) {
 	ESP_LOGI(TAG, "no background images directory found");
 	return false;

@@ -68,7 +68,7 @@ OK, that's enough doom and gloom. On with the show...
 - [ ] Encryption at rest for secrets saved in Tanmatsu system config - prompt the user for a passphrase to unlock
 - [ ] Settings UI for user to pick their preferred / permitted encryption algorithms
 - [ ] Support for `ssh-agent` - but may not be particularly meaningful as a concept until/unless Tanmatsu is multi-tasking
-- [ ] Decouple from the launcher and make into an app in its own right
+- [x] Decouple from the launcher and make into an app in its own right
 - [ ] Support for captive portals - coffee shop wifi, trains, hotels etc
 - [ ] Support for USB networking - e.g. tether to laptop and use its Internet connection
 - [ ] Support for system level themes - fg/bg colours, fonts, cursor types, text size etc. Tanmatsu codebase has hooks for this, but right now there is only the default theme and no settings UI
