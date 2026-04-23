@@ -98,7 +98,7 @@ void render_base_screen_statusbar(pax_buf_t* buffer, gui_theme_t* theme, bool ba
     gui_element_icontext_t header_right[1]    = {0};
     size_t                 header_right_count = 0;
     if (header) {
-        header_right[3]    = wifi_indicator();
+        header_right[0]    = wifi_indicator();
         header_right_count = 1;
     } else {
         header_right_count = 0;
