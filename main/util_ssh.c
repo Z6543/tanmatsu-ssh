@@ -25,6 +25,7 @@
 #include "tanmatsu_coprocessor.h"
 #include "wifi_connection.h"
 #include "esp_random.h"
+#include "esp_heap_caps.h"
 #include <libssh2.h>
 #include "libssh2_setup.h"
 #include "lwip/sockets.h"
@@ -48,6 +49,7 @@ static char const CHR_ESC[] = "\e";
 struct cons_insts_s console_instance;
 LIBSSH2_CHANNEL *ssh_channel;
 LIBSSH2_SESSION *ssh_session;
+libssh2_socket_t ssh_sock = LIBSSH2_INVALID_SOCKET;
 pax_buf_t ssh_bg_pax_buf = {0};
 
 
@@ -221,7 +223,7 @@ static void util_ssh_bgrand(struct cons_insts_s* console_instance) {
 
 // set up our data structures, socket etc - then try to connect to the ssh server
 //static bool util_ssh_init(struct cons_insts_s* console_instance, ssh_settings_t* settings, libssh2_socket_t ssh_sock, LIBSSH2_SESSION* ssh_session) {
-static bool util_ssh_init(struct cons_insts_s* console_instance, ssh_settings_t* settings, libssh2_socket_t ssh_sock) {
+static bool util_ssh_init(struct cons_insts_s* console_instance, ssh_settings_t* settings) {
     int rc;
     struct sockaddr_in ssh_addr;
 
@@ -608,30 +610,37 @@ static void util_ssh_response_task(void* pvParameters) {
 
 
 //static void util_ssh_shutdown(struct cons_insts_s* console_instance, libssh2_socket_t ssh_sock, LIBSSH2_SESSION* ssh_session, LIBSSH2_CHANNEL* ssh_channel) {
-static void util_ssh_shutdown(struct cons_insts_s* console_instance, libssh2_socket_t ssh_sock) {
+static void util_ssh_shutdown(struct cons_insts_s* console_instance) {
     // closing the ssh connection and freeing resources
     // could be due to user action, or an error
     console_clear(console_instance);
     console_set_cursor(console_instance, 0, 0);
     console_printf(console_instance, "Closing down session...\n");
     display_blit_buffer(console_instance->paxbuf);
-    ESP_LOGI(TAG, "freeing memory...");
-    libssh2_channel_send_eof(ssh_channel);
-    libssh2_channel_close(ssh_channel);
-    libssh2_session_disconnect(ssh_session, "User closed session");
-    libssh2_channel_free(ssh_channel);
-    //libssh2_knownhost_free(nh);
-    // what about ssh_hostkey?
-    // maybe libssh2_session_free(ssh_session);
+    ESP_LOGI(TAG, "freeing memory... (free heap: %lu)", (unsigned long)esp_get_free_heap_size());
+    if (ssh_channel) {
+        libssh2_channel_send_eof(ssh_channel);
+        libssh2_channel_close(ssh_channel);
+        libssh2_channel_free(ssh_channel);
+        ssh_channel = NULL;
+    }
+    if (ssh_session) {
+        libssh2_session_disconnect(ssh_session, "User closed session");
+        libssh2_session_free(ssh_session);
+        ssh_session = NULL;
+    }
     if (ssh_sock != LIBSSH2_INVALID_SOCKET) {
         shutdown(ssh_sock, 2);
         LIBSSH2_SOCKET_CLOSE(ssh_sock);
+        ssh_sock = LIBSSH2_INVALID_SOCKET;
     }
-    libssh2_exit();	
+    libssh2_exit();
+    ESP_LOGI(TAG, "shutdown complete (free heap: %lu)", (unsigned long)esp_get_free_heap_size());
 }
 
 
 void util_ssh(pax_buf_t* buffer, gui_theme_t* theme, ssh_settings_t* settings, uint8_t connection_index) {
+    ESP_LOGI(TAG, "Free heap at entry: %lu", (unsigned long)esp_get_free_heap_size());
     QueueHandle_t input_event_queue = NULL;
     ESP_ERROR_CHECK(bsp_input_get_queue(&input_event_queue));
     bsp_input_event_t event;
@@ -646,9 +655,6 @@ void util_ssh(pax_buf_t* buffer, gui_theme_t* theme, ssh_settings_t* settings, u
 	.paxbuf = display_get_buffer(), 
 	.output_cb = NULL
     };
-
-    //LIBSSH2_SESSION *ssh_session;
-    libssh2_socket_t ssh_sock;
 
     console_init(&console_instance, &con_conf);
     //console_set_colors(&console_instance, CONS_COL_VGA_GREEN, CONS_COL_VGA_BLACK);
@@ -678,26 +684,32 @@ void util_ssh(pax_buf_t* buffer, gui_theme_t* theme, ssh_settings_t* settings, u
     //if (!util_ssh_init(&console_instance, settings, ssh_sock, ssh_session)) {
     //	util_ssh_shutdown(&console_instance, ssh_sock, ssh_session, ssh_channel);
     //}
-    if (!util_ssh_init(&console_instance, settings, ssh_sock)) {
-      	util_ssh_shutdown(&console_instance, ssh_sock);
+    ESP_LOGI(TAG, "Free heap before init: %lu", (unsigned long)esp_get_free_heap_size());
+    if (!util_ssh_init(&console_instance, settings)) {
+      	util_ssh_shutdown(&console_instance);
+	ESP_LOGI(TAG, "Free heap after failed init+shutdown: %lu", (unsigned long)esp_get_free_heap_size());
 	return;
     }
+    ESP_LOGI(TAG, "Free heap after init: %lu", (unsigned long)esp_get_free_heap_size());
 
     //if (!util_ssh_key_exchange(&console_instance, &ssh_session, connection_index)) {
     //    util_ssh_shutdown(&console_instance, ssh_sock, ssh_session, ssh_channel);
     //}
     if (!util_ssh_key_exchange(&console_instance, connection_index)) {
-        util_ssh_shutdown(&console_instance, ssh_sock);
+        util_ssh_shutdown(&console_instance);
 	return;
     }
 
     //if (!util_ssh_auth_stage(&console_instance, settings, ssh_session, ssh_channel)) {
     //    util_ssh_shutdown(&console_instance, ssh_sock, ssh_session, ssh_channel);
     //}
+    ESP_LOGI(TAG, "Free heap before auth: %lu", (unsigned long)esp_get_free_heap_size());
     if (!util_ssh_auth_stage(&console_instance, settings)) {
-        util_ssh_shutdown(&console_instance, ssh_sock);
+        util_ssh_shutdown(&console_instance);
+	ESP_LOGI(TAG, "Free heap after failed auth+shutdown: %lu", (unsigned long)esp_get_free_heap_size());
 	return;
     }
+    ESP_LOGI(TAG, "Free heap after auth: %lu", (unsigned long)esp_get_free_heap_size());
     
     ESP_LOGI(TAG, "Looking for background images...\n");
     console_printf(&console_instance, "Looking for background images... ");
@@ -753,8 +765,7 @@ void util_ssh(pax_buf_t* buffer, gui_theme_t* theme, ssh_settings_t* settings, u
                 case BSP_INPUT_NAVIGATION_KEY_F1:
 		    ESP_LOGI(TAG, "esc or close key pressed - returning to app launcher");
 		    util_ssh_done = true;
-	            //util_ssh_shutdown(&console_instance, ssh_sock, ssh_session, ssh_channel);
-	            util_ssh_shutdown(&console_instance, ssh_sock);
+	            util_ssh_shutdown(&console_instance);
 		    break;
                 case BSP_INPUT_NAVIGATION_KEY_F2:
 		    ESP_LOGI(TAG, "keyboard backlight toggle");

@@ -79,6 +79,14 @@ void app_main(void) {
     pax_draw_text(fb, 0xFF000000, pax_font_sky_mono, 16, 0, 0, "Connecting to radio...");
     display_blit_buffer(fb);
 
+    // Force the radio coprocessor off before bringing it up, in case it was
+    // left in APPLICATION mode by a previously running app with a transfer
+    // still in flight. Without this clean power-cycle the radio can come up
+    // in an inconsistent state and cause crashes shortly after launch.
+    // (Same pattern as tanmatsu-launcher/main/main.c:473.)
+    bsp_power_set_radio_state(BSP_POWER_RADIO_STATE_OFF);
+    vTaskDelay(pdMS_TO_TICKS(200));
+
     if (wifi_remote_initialize() == ESP_OK) {
         pax_background(fb, 0xFFFFFFFF);
         pax_draw_text(fb, 0xFF000000, pax_font_sky_mono, 16, 0, 0, "Starting WiFi stack...");
